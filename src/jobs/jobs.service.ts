@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CacheService } from 'src/cache/cache.service';
 import { ILike, Repository } from 'typeorm';
 import { MailService } from '../mail/mail.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
@@ -26,6 +27,7 @@ export class JobsService {
     private readonly applicationRepository: Repository<Application>,
     private readonly notificationsService: NotificationsService,
     private readonly mailService: MailService,
+    private readonly cacheService: CacheService,
   ) {}
 
   // ── Crear oferta (solo empresas) ──────────────────────────────
@@ -34,14 +36,20 @@ export class JobsService {
       ...createJobDto,
       postedBy: user,
     });
-    return this.jobRepository.save(job);
+
+    const saved = await this.jobRepository.save(job);
+    await this.cacheService.reset();
+    return saved;
   }
 
   // ── Listar ofertas con filtros y paginación ───────────────────
   async findAll(filters: FilterJobDto) {
-    const { search, location, minSalary, status, page, limit } = filters;
-    const skip = ((page ?? 1) - 1) * (limit ?? 10);
+    const cacheKey = `jobs_${JSON.stringify(filters)}`;
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
 
+    const { search, location, status, page, limit } = filters;
+    const skip = ((page ?? 1) - 1) * (limit ?? 10);
     const where: any = {};
 
     if (search) where.title = ILike(`%${search}%`);
@@ -56,7 +64,7 @@ export class JobsService {
       take: limit,
     });
 
-    return {
+    const result = {
       data: jobs,
       meta: {
         total,
@@ -65,6 +73,9 @@ export class JobsService {
         totalPages: Math.ceil(total / (limit ?? 10)),
       },
     };
+
+    await this.cacheService.set(cacheKey, result, 60);
+    return result;
   }
 
   // ── Ver detalle de una oferta ─────────────────────────────────
@@ -104,8 +115,9 @@ export class JobsService {
         'No tienes permiso para eliminar esta oferta',
       );
     }
-
+    // Al final de remove():
     await this.jobRepository.remove(job);
+    await this.cacheService.reset();
   }
 
   // ── Aplicar a una oferta ──────────────────────────────────────

@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { UserRole } from 'src/users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -38,5 +39,20 @@ export class AuthService {
 
   private generateToken(userId: string, email: string) {
     return this.jwtService.sign({ sub: userId, email });
+  }
+
+  async findOrCreateGoogleUser(email: string) {
+    let user = await this.usersService.findByEmail(email);
+
+    if (!user) {
+      user = await this.usersService.create({
+        email,
+        password: Math.random().toString(36).slice(-8),
+        role: UserRole.CANDIDATE,
+      });
+    }
+
+    const token = this.generateToken(user.id, user.email);
+    return { user: { id: user.id, email: user.email, role: user.role }, token };
   }
 }

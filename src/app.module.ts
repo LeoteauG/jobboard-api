@@ -1,14 +1,17 @@
 import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import * as Joi from 'joi';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AuthModule } from './auth/auth.module';
+import { RedisCacheModule } from './cache/cache.module';
 import { JobsModule } from './jobs/jobs.module';
 import { MailModule } from './mail/mail.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { UsersModule } from './users/users.module';
-
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -40,6 +43,11 @@ import { UsersModule } from './users/users.module';
         MAIL_USER: Joi.string().required(),
         MAIL_PASS: Joi.string().required(),
         MAIL_FROM: Joi.string().required(),
+
+        //Google OAuth
+        GOOGLE_CLIENT_ID: Joi.string().required(),
+        GOOGLE_CLIENT_SECRET: Joi.string().required(),
+        GOOGLE_CALLBACK_URL: Joi.string().required(),
       }),
     }),
     TypeOrmModule.forRootAsync({
@@ -64,11 +72,25 @@ import { UsersModule } from './users/users.module';
         },
       }),
     }),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000, // 1 minuto
+        limit: 10, // máximo 10 requests por minuto
+      },
+    ]),
     UsersModule,
     JobsModule,
     AuthModule,
     NotificationsModule,
     MailModule,
+    RedisCacheModule,
+    AnalyticsModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

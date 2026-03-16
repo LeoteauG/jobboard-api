@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -10,8 +10,8 @@ import { AuthService } from './auth.service';
 import { GetUser } from './decorators/get-user.decorator';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -41,5 +41,17 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'No autorizado' })
   profile(@GetUser() user: User) {
     return user;
+  }
+
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Login con Google' })
+  googleAuth() {}
+
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Callback de Google OAuth' })
+  googleCallback(@Req() req: any) {
+    return req.user;
   }
 }

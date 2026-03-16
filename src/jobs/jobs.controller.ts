@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Ip,
   Param,
   Patch,
   Post,
@@ -16,6 +17,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { AnalyticsService } from 'src/analytics/analytics.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -30,7 +32,10 @@ import { JobsService } from './jobs.service';
 @ApiTags('jobs')
 @Controller('jobs')
 export class JobsController {
-  constructor(private readonly jobsService: JobsService) {}
+  constructor(
+    private readonly jobsService: JobsService,
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Listar ofertas con filtros y paginación' })
@@ -53,8 +58,10 @@ export class JobsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Ver detalle de una oferta' })
-  findOne(@Param('id') id: string) {
-    return this.jobsService.findOne(id);
+  async findOne(@Param('id') id: string, @Ip() ip: string) {
+    const job = await this.jobsService.findOne(id);
+    await this.analyticsService.registerView(job, ip);
+    return job;
   }
 
   @Post()
